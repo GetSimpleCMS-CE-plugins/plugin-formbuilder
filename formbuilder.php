@@ -137,6 +137,61 @@ function formbuilder_init() {
     }
 }
 
+
+/**
+ * Load language files for frontend with fallback to English
+ */
+function formbuilder_load_frontend_lang() {
+    global $LANG;
+    
+    // Determine language
+    $lang = isset($LANG) ? $LANG : 'pl_PL';
+    
+    // Path to language files
+    $lang_file = GSPLUGINPATH . 'formbuilder/lang/' . $lang . '.php';
+    $fallback_file = GSPLUGINPATH . 'formbuilder/lang/en_US.php';
+    
+    // Initialize global array
+    if (!isset($GLOBALS['formbuilder_i18n'])) {
+        $GLOBALS['formbuilder_i18n'] = array();
+    }
+    
+    // First, try to load English as fallback
+    if (file_exists($fallback_file)) {
+        $i18n = array();
+        include($fallback_file);
+        $GLOBALS['formbuilder_i18n'] = $i18n;
+    }
+    
+    // Then, load selected language (will override English keys)
+    if ($lang != 'en_US' && file_exists($lang_file)) {
+        $i18n = array();
+        include($lang_file);
+        $GLOBALS['formbuilder_i18n'] = array_merge($GLOBALS['formbuilder_i18n'], $i18n);
+        return true;
+    }
+    
+    return file_exists($fallback_file);
+}
+
+/**
+ * Get translation for frontend
+ */
+function formbuilder_i18n($key, $fallback = '') {
+    if (!isset($GLOBALS['formbuilder_i18n'])) {
+        formbuilder_load_frontend_lang();
+    }
+    
+    if (isset($GLOBALS['formbuilder_i18n'][$key])) {
+        return $GLOBALS['formbuilder_i18n'][$key];
+    }
+    
+    // If no translation found, return fallback or key
+    return $fallback ? $fallback : $key;
+}
+
+
+
 function formbuilder_main() {
     global $SITEURL;
     
@@ -1213,7 +1268,13 @@ function formbuilder_shortcode($content) {
 /**
  * Display form - FRONTEND with Post/Redirect/Get pattern
  */
+/**
+ * Display form - FRONTEND with Post/Redirect/Get pattern
+ */
 function show_form($slug, $echo = true) {
+    // Load frontend translations
+    formbuilder_load_frontend_lang();
+    
     $db = new SQLite3(FORMBUILDER_DB);
     $stmt = $db->prepare('SELECT * FROM forms WHERE slug = ?');
     $stmt->bindValue(1, $slug, SQLITE3_TEXT);
@@ -1248,7 +1309,7 @@ function show_form($slug, $echo = true) {
     if (isset($_POST['fb_submit_' . $form['id']]) && !$success) {
         
         if (!isset($_POST['fb_csrf']) || $_POST['fb_csrf'] !== $csrf_token) {
-            $errors[] = i18n_r('formbuilder/ERROR_CSRF');
+            $errors[] = formbuilder_i18n('ERROR_CSRF', 'Błąd weryfikacji CSRF');
         } else {
             
             $ip = $_SERVER['REMOTE_ADDR'];
@@ -1259,7 +1320,7 @@ function show_form($slug, $echo = true) {
             if (time() - $_SESSION[$rate_key]['time'] < 60) {
                 $_SESSION[$rate_key]['count']++;
                 if ($_SESSION[$rate_key]['count'] > 5) {
-                    $errors[] = i18n_r('formbuilder/ERROR_RATE_LIMIT');
+                    $errors[] = formbuilder_i18n('ERROR_RATE_LIMIT', 'Za dużo prób. Spróbuj ponownie za chwilę.');
                 }
             } else {
                 $_SESSION[$rate_key] = ['count' => 1, 'time' => time()];
@@ -1268,12 +1329,12 @@ function show_form($slug, $echo = true) {
             if (empty($errors)) {
                 if ($form['enable_captcha'] == 1 && !empty($form['captcha_secret'])) {
                     if (empty($_POST['h-captcha-response'])) {
-                        $errors[] = i18n_r('formbuilder/ERROR_CAPTCHA_REQUIRED');
+                        $errors[] = formbuilder_i18n('ERROR_CAPTCHA_REQUIRED', 'Captcha jest wymagana');
                     } else {
                         $verify = @file_get_contents('https://hcaptcha.com/siteverify?secret=' . urlencode($form['captcha_secret']) . '&response=' . urlencode($_POST['h-captcha-response']));
                         $check = json_decode($verify);
                         if (!$check || !$check->success) {
-                            $errors[] = i18n_r('formbuilder/ERROR_CAPTCHA_FAILED');
+                            $errors[] = formbuilder_i18n('ERROR_CAPTCHA_FAILED', 'Weryfikacja captcha nie powiodła się');
                         }
                     }
                 }
@@ -1290,14 +1351,14 @@ function show_form($slug, $echo = true) {
                             
                             $maxSize = ($f['file_max_size'] ?? 5) * 1024 * 1024;
                             if ($file['size'] > $maxSize) {
-                                $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_FILE_SIZE') . ' ' . ($f['file_max_size'] ?? 5) . 'MB)';
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_SIZE', ' - plik zbyt duży (max ') . ($f['file_max_size'] ?? 5) . 'MB)';
                                 continue;
                             }
                             
                             $allowed = array_map('trim', explode(',', $f['file_accept'] ?? ''));
                             $ext = '.' . strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                             if (!empty($allowed[0]) && !in_array($ext, $allowed)) {
-                                $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_FILE_TYPE');
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_TYPE', ' - nieprawidłowy typ pliku');
                                 continue;
                             }
                             
@@ -1314,7 +1375,7 @@ function show_form($slug, $echo = true) {
                             ];
                             
                             if (!in_array($mimeType, $allowedMimes)) {
-                                $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_FILE_INVALID');
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_INVALID', ' - nieprawidłowy plik');
                                 continue;
                             }
                             
@@ -1332,10 +1393,10 @@ function show_form($slug, $echo = true) {
                                     'mime' => $mimeType
                                 ];
                             } else {
-                                $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_UPLOAD_FAILED');
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_UPLOAD_FAILED', ' - upload nie powiódł się');
                             }
                         } elseif ($f['required']) {
-                            $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_REQUIRED');
+                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_REQUIRED', ' - pole wymagane');
                         }
                     } else {
                         $val = isset($_POST[$f['name']]) ? $_POST[$f['name']] : '';
@@ -1350,11 +1411,11 @@ function show_form($slug, $echo = true) {
                         }
                         
                         if ($f['required'] && empty($val)) {
-                            $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_REQUIRED');
+                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_REQUIRED', ' - pole wymagane');
                         }
                         
                         if ($f['type'] == 'email' && !empty($val) && !filter_var($val, FILTER_VALIDATE_EMAIL)) {
-                            $errors[] = $f['label'] . i18n_r('formbuilder/ERROR_EMAIL_INVALID');
+                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_EMAIL_INVALID', ' - nieprawidłowy adres email');
                         }
                     }
                     
@@ -1566,7 +1627,7 @@ function show_form($slug, $echo = true) {
                     
                     <?php elseif ($f['type'] == 'select'): ?>
                         <select name="<?php echo htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8'); ?>" <?php if ($f['required']) echo 'required'; ?>>
-                            <option value=""><?php echo i18n_r('formbuilder/SELECT_OPTION'); ?></option>
+                            <option value=""><?php echo formbuilder_i18n('SELECT_OPTION', 'Wybierz opcję'); ?></option>
                             <?php foreach (explode('|', $f['options']) as $opt): ?>
                             <option value="<?php echo htmlspecialchars(trim($opt), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars(trim($opt), ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
@@ -1598,8 +1659,8 @@ function show_form($slug, $echo = true) {
                                <?php if ($f['required']) echo 'required'; ?>>
                         <?php if (!empty($f['file_accept']) || !empty($f['file_max_size'])): ?>
                         <div class="fb-file-info-minimal">
-                            <?php if (!empty($f['file_accept'])): ?><?php echo i18n_r('formbuilder/FILE_ALLOWED'); ?>: <?php echo htmlspecialchars($f['file_accept'], ENT_QUOTES, 'UTF-8'); ?> | <?php endif; ?>
-                            <?php echo i18n_r('formbuilder/FILE_MAX'); ?>: <?php echo (int)($f['file_max_size'] ?? 5); ?>MB
+                            <?php if (!empty($f['file_accept'])): ?><?php echo formbuilder_i18n('FILE_ALLOWED', 'Dozwolone'); ?>: <?php echo htmlspecialchars($f['file_accept'], ENT_QUOTES, 'UTF-8'); ?> | <?php endif; ?>
+                            <?php echo formbuilder_i18n('FILE_MAX', 'Maks'); ?>: <?php echo (int)($f['file_max_size'] ?? 5); ?>MB
                         </div>
                         <?php endif; ?>
                     
