@@ -186,4 +186,9 @@ $i18n = array(
 'MAIL_CHARSET_ISO' => 'ISO-8859-2 (Latin-2)',
 'MAIL_CHARSET_WIN' => 'Windows-1250 (CP1250)',
 'MAIL_CHARSET_INFO' => 'UTF-8 supports all languages. Change only if email client has display issues.',
+
+
+'FORM_LANGUAGE' => 'Frontend Form Language',
+'FORM_LANGUAGE_INFO' => 'Select the language in which the form will be displayed to users.',
+
 );

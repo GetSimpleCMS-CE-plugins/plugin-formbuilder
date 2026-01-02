@@ -40,7 +40,7 @@ add_action('common', 'formbuilder_init');
 add_filter('content', 'formbuilder_shortcode');
 
 /**
- * Initialize - Create DB with new mail_method and mail_charset columns
+ * Initialize - Create DB with new columns
  */
 function formbuilder_init() {
     // Start session early
@@ -66,6 +66,7 @@ function formbuilder_init() {
             redirect_url TEXT,
             mail_method TEXT DEFAULT "mailto",
             mail_charset TEXT DEFAULT "UTF-8",
+            form_language TEXT DEFAULT "en_US",
             smtp_host TEXT,
             smtp_port INTEGER DEFAULT 587,
             smtp_username TEXT,
@@ -103,7 +104,6 @@ function formbuilder_init() {
         // Update existing database schema
         $db = new SQLite3(FORMBUILDER_DB);
         
-        // Check if mail_method column exists
         $result = $db->query("PRAGMA table_info(forms)");
         $columns = [];
         while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
@@ -128,6 +128,11 @@ function formbuilder_init() {
             $db->exec('ALTER TABLE forms ADD COLUMN mail_charset TEXT DEFAULT "UTF-8"');
         }
         
+        // Add form_language column if missing
+        if (!in_array('form_language', $columns)) {
+            $db->exec('ALTER TABLE forms ADD COLUMN form_language TEXT DEFAULT "en_US"');
+        }
+        
         $db->close();
     }
     
@@ -137,24 +142,51 @@ function formbuilder_init() {
     }
 }
 
+/**
+ * Get available frontend languages from lang folder
+ */
+function formbuilder_get_available_languages() {
+    $lang_dir = GSPLUGINPATH . 'formbuilder/lang/';
+    $languages = array();
+    
+    if (is_dir($lang_dir)) {
+        $files = scandir($lang_dir);
+        foreach ($files as $file) {
+            if (pathinfo($file, PATHINFO_EXTENSION) == 'php') {
+                $lang_code = pathinfo($file, PATHINFO_FILENAME);
+                
+                // Get language name
+                $lang_name = $lang_code;
+                switch ($lang_code) {
+                    case 'en_US': $lang_name = 'English'; break;
+                    case 'pl_PL': $lang_name = 'Polski'; break;
+                    case 'de_DE': $lang_name = 'Deutsch'; break;
+                    case 'fr_FR': $lang_name = 'Français'; break;
+                    case 'es_ES': $lang_name = 'Español'; break;
+                    case 'it_IT': $lang_name = 'Italiano'; break;
+                    case 'nl_NL': $lang_name = 'Nederlands'; break;
+                }
+                
+                $languages[$lang_code] = $lang_name;
+            }
+        }
+    }
+    
+    return $languages;
+}
 
 /**
- * Load language files for frontend with fallback to English
+ * Load language file for frontend based on form setting
  */
-function formbuilder_load_frontend_lang() {
-    global $LANG;
-    
-    // Determine language
-    $lang = isset($LANG) ? $LANG : 'pl_PL';
-    
-    // Path to language files
-    $lang_file = GSPLUGINPATH . 'formbuilder/lang/' . $lang . '.php';
-    $fallback_file = GSPLUGINPATH . 'formbuilder/lang/en_US.php';
-    
+function formbuilder_load_frontend_lang($form_language = 'en_US') {
     // Initialize global array
     if (!isset($GLOBALS['formbuilder_i18n'])) {
         $GLOBALS['formbuilder_i18n'] = array();
     }
+    
+    // Path to language files
+    $lang_file = GSPLUGINPATH . 'formbuilder/lang/' . $form_language . '.php';
+    $fallback_file = GSPLUGINPATH . 'formbuilder/lang/en_US.php';
     
     // First, try to load English as fallback
     if (file_exists($fallback_file)) {
@@ -164,7 +196,7 @@ function formbuilder_load_frontend_lang() {
     }
     
     // Then, load selected language (will override English keys)
-    if ($lang != 'en_US' && file_exists($lang_file)) {
+    if ($form_language != 'en_US' && file_exists($lang_file)) {
         $i18n = array();
         include($lang_file);
         $GLOBALS['formbuilder_i18n'] = array_merge($GLOBALS['formbuilder_i18n'], $i18n);
@@ -178,10 +210,6 @@ function formbuilder_load_frontend_lang() {
  * Get translation for frontend
  */
 function formbuilder_i18n($key, $fallback = '') {
-    if (!isset($GLOBALS['formbuilder_i18n'])) {
-        formbuilder_load_frontend_lang();
-    }
-    
     if (isset($GLOBALS['formbuilder_i18n'][$key])) {
         return $GLOBALS['formbuilder_i18n'][$key];
     }
@@ -189,8 +217,6 @@ function formbuilder_i18n($key, $fallback = '') {
     // If no translation found, return fallback or key
     return $fallback ? $fallback : $key;
 }
-
-
 
 function formbuilder_main() {
     global $SITEURL;
@@ -575,7 +601,7 @@ function formbuilder_duplicate($fid) {
     $newName = $form['name'] . ' (Copy)';
     
     // Insert duplicated form
-    $stmt = $db->prepare('INSERT INTO forms (name, slug, title, description, submit_text, success_msg, enable_captcha, captcha_site, captcha_secret, email_to, redirect_url, mail_method, mail_charset, smtp_host, smtp_port, smtp_username, smtp_password, smtp_secure, smtp_from_email, smtp_from_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $db->prepare('INSERT INTO forms (name, slug, title, description, submit_text, success_msg, enable_captcha, captcha_site, captcha_secret, email_to, redirect_url, mail_method, mail_charset, form_language, smtp_host, smtp_port, smtp_username, smtp_password, smtp_secure, smtp_from_email, smtp_from_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     
     $stmt->bindValue(1, $newName);
     $stmt->bindValue(2, $newSlug);
@@ -590,13 +616,14 @@ function formbuilder_duplicate($fid) {
     $stmt->bindValue(11, $form['redirect_url']);
     $stmt->bindValue(12, $form['mail_method'] ?? 'mailto');
     $stmt->bindValue(13, $form['mail_charset'] ?? 'UTF-8');
-    $stmt->bindValue(14, $form['smtp_host'] ?? '');
-    $stmt->bindValue(15, $form['smtp_port'] ?? 587, SQLITE3_INTEGER);
-    $stmt->bindValue(16, $form['smtp_username'] ?? '');
-    $stmt->bindValue(17, $form['smtp_password'] ?? '');
-    $stmt->bindValue(18, $form['smtp_secure'] ?? 'tls');
-    $stmt->bindValue(19, $form['smtp_from_email'] ?? '');
-    $stmt->bindValue(20, $form['smtp_from_name'] ?? '');
+    $stmt->bindValue(14, $form['form_language'] ?? 'en_US');
+    $stmt->bindValue(15, $form['smtp_host'] ?? '');
+    $stmt->bindValue(16, $form['smtp_port'] ?? 587, SQLITE3_INTEGER);
+    $stmt->bindValue(17, $form['smtp_username'] ?? '');
+    $stmt->bindValue(18, $form['smtp_password'] ?? '');
+    $stmt->bindValue(19, $form['smtp_secure'] ?? 'tls');
+    $stmt->bindValue(20, $form['smtp_from_email'] ?? '');
+    $stmt->bindValue(21, $form['smtp_from_name'] ?? '');
     $stmt->execute();
     
     $newFormId = $db->lastInsertRowID();
@@ -733,6 +760,7 @@ function formbuilder_edit($fid) {
         // New mail settings
         $mail_method = $_POST['mail_method'] ?? 'mailto';
         $mail_charset = $_POST['mail_charset'] ?? 'UTF-8';
+        $form_language = $_POST['form_language'] ?? 'en_US';
         $smtp_host = $_POST['smtp_host'] ?? '';
         $smtp_port = (int)($_POST['smtp_port'] ?? 587);
         $smtp_username = $_POST['smtp_username'] ?? '';
@@ -742,10 +770,10 @@ function formbuilder_edit($fid) {
         $smtp_from_name = $_POST['smtp_from_name'] ?? '';
         
         if ($fid > 0) {
-            $stmt = $db->prepare('UPDATE forms SET name=?, slug=?, title=?, description=?, submit_text=?, success_msg=?, enable_captcha=?, captcha_site=?, captcha_secret=?, email_to=?, redirect_url=?, mail_method=?, mail_charset=?, smtp_host=?, smtp_port=?, smtp_username=?, smtp_password=?, smtp_secure=?, smtp_from_email=?, smtp_from_name=? WHERE id=?');
-            $stmt->bindValue(21, $fid, SQLITE3_INTEGER);
+            $stmt = $db->prepare('UPDATE forms SET name=?, slug=?, title=?, description=?, submit_text=?, success_msg=?, enable_captcha=?, captcha_site=?, captcha_secret=?, email_to=?, redirect_url=?, mail_method=?, mail_charset=?, form_language=?, smtp_host=?, smtp_port=?, smtp_username=?, smtp_password=?, smtp_secure=?, smtp_from_email=?, smtp_from_name=? WHERE id=?');
+            $stmt->bindValue(22, $fid, SQLITE3_INTEGER);
         } else {
-            $stmt = $db->prepare('INSERT INTO forms (name, slug, title, description, submit_text, success_msg, enable_captcha, captcha_site, captcha_secret, email_to, redirect_url, mail_method, mail_charset, smtp_host, smtp_port, smtp_username, smtp_password, smtp_secure, smtp_from_email, smtp_from_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt = $db->prepare('INSERT INTO forms (name, slug, title, description, submit_text, success_msg, enable_captcha, captcha_site, captcha_secret, email_to, redirect_url, mail_method, mail_charset, form_language, smtp_host, smtp_port, smtp_username, smtp_password, smtp_secure, smtp_from_email, smtp_from_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         }
         
         $stmt->bindValue(1, $name);
@@ -761,13 +789,14 @@ function formbuilder_edit($fid) {
         $stmt->bindValue(11, $redirect);
         $stmt->bindValue(12, $mail_method);
         $stmt->bindValue(13, $mail_charset);
-        $stmt->bindValue(14, $smtp_host);
-        $stmt->bindValue(15, $smtp_port, SQLITE3_INTEGER);
-        $stmt->bindValue(16, $smtp_username);
-        $stmt->bindValue(17, $smtp_password);
-        $stmt->bindValue(18, $smtp_secure);
-        $stmt->bindValue(19, $smtp_from_email);
-        $stmt->bindValue(20, $smtp_from_name);
+        $stmt->bindValue(14, $form_language);
+        $stmt->bindValue(15, $smtp_host);
+        $stmt->bindValue(16, $smtp_port, SQLITE3_INTEGER);
+        $stmt->bindValue(17, $smtp_username);
+        $stmt->bindValue(18, $smtp_password);
+        $stmt->bindValue(19, $smtp_secure);
+        $stmt->bindValue(20, $smtp_from_email);
+        $stmt->bindValue(21, $smtp_from_name);
         $stmt->execute();
         
         if ($fid == 0) {
@@ -836,6 +865,19 @@ function formbuilder_edit($fid) {
     echo '<textarea name="desc" class="text" rows="3" placeholder="' . i18n_r('formbuilder/FORM_DESC_PH') . '">' . htmlspecialchars($form['description'] ?? '') . '</textarea>';
     echo '</div>';
     
+    // NOWE: Wybór języka formularza
+    echo '<div class="fb-form-group">';
+    echo '<label>🌍 ' . i18n_r('formbuilder/FORM_LANGUAGE') . '</label>';
+    echo '<select name="form_language" class="text">';
+    $form_language = $form['form_language'] ?? 'en_US';
+    $available_languages = formbuilder_get_available_languages();
+    foreach ($available_languages as $lang_code => $lang_name) {
+        echo '<option value="' . $lang_code . '" ' . ($form_language == $lang_code ? 'selected' : '') . '>' . $lang_name . '</option>';
+    }
+    echo '</select>';
+    echo '<p style="margin-top:8px; font-size:13px; color:#6b7280;">ℹ️ ' . i18n_r('formbuilder/FORM_LANGUAGE_INFO') . '</p>';
+    echo '</div>';
+    
     echo '</div></div>';
     
     echo '<div class="fb-card">';
@@ -885,7 +927,7 @@ function formbuilder_edit($fid) {
     echo '</div>';
     echo '</div>';
     
-    // NOWE: Wybór kodowania
+    // Wybór kodowania
     echo '<div class="fb-form-group">';
     echo '<label>' . i18n_r('formbuilder/MAIL_CHARSET') . '</label>';
     echo '<select name="mail_charset" class="text">';
@@ -1268,13 +1310,7 @@ function formbuilder_shortcode($content) {
 /**
  * Display form - FRONTEND with Post/Redirect/Get pattern
  */
-/**
- * Display form - FRONTEND with Post/Redirect/Get pattern
- */
 function show_form($slug, $echo = true) {
-    // Load frontend translations
-    formbuilder_load_frontend_lang();
-    
     $db = new SQLite3(FORMBUILDER_DB);
     $stmt = $db->prepare('SELECT * FROM forms WHERE slug = ?');
     $stmt->bindValue(1, $slug, SQLITE3_TEXT);
@@ -1285,6 +1321,9 @@ function show_form($slug, $echo = true) {
         $db->close();
         return '<!-- Form not found -->';
     }
+    
+    // Load translations for this form's language
+    formbuilder_load_frontend_lang($form['form_language'] ?? 'en_US');
     
     $stmt = $db->prepare('SELECT * FROM form_fields WHERE form_id = ? ORDER BY field_order');
     $stmt->bindValue(1, $form['id'], SQLITE3_INTEGER);
@@ -1309,7 +1348,7 @@ function show_form($slug, $echo = true) {
     if (isset($_POST['fb_submit_' . $form['id']]) && !$success) {
         
         if (!isset($_POST['fb_csrf']) || $_POST['fb_csrf'] !== $csrf_token) {
-            $errors[] = formbuilder_i18n('ERROR_CSRF', 'Błąd weryfikacji CSRF');
+            $errors[] = formbuilder_i18n('ERROR_CSRF', 'CSRF validation error');
         } else {
             
             $ip = $_SERVER['REMOTE_ADDR'];
@@ -1320,7 +1359,7 @@ function show_form($slug, $echo = true) {
             if (time() - $_SESSION[$rate_key]['time'] < 60) {
                 $_SESSION[$rate_key]['count']++;
                 if ($_SESSION[$rate_key]['count'] > 5) {
-                    $errors[] = formbuilder_i18n('ERROR_RATE_LIMIT', 'Za dużo prób. Spróbuj ponownie za chwilę.');
+                    $errors[] = formbuilder_i18n('ERROR_RATE_LIMIT', 'Too many attempts');
                 }
             } else {
                 $_SESSION[$rate_key] = ['count' => 1, 'time' => time()];
@@ -1329,12 +1368,12 @@ function show_form($slug, $echo = true) {
             if (empty($errors)) {
                 if ($form['enable_captcha'] == 1 && !empty($form['captcha_secret'])) {
                     if (empty($_POST['h-captcha-response'])) {
-                        $errors[] = formbuilder_i18n('ERROR_CAPTCHA_REQUIRED', 'Captcha jest wymagana');
+                        $errors[] = formbuilder_i18n('ERROR_CAPTCHA_REQUIRED', 'Captcha is required');
                     } else {
                         $verify = @file_get_contents('https://hcaptcha.com/siteverify?secret=' . urlencode($form['captcha_secret']) . '&response=' . urlencode($_POST['h-captcha-response']));
                         $check = json_decode($verify);
                         if (!$check || !$check->success) {
-                            $errors[] = formbuilder_i18n('ERROR_CAPTCHA_FAILED', 'Weryfikacja captcha nie powiodła się');
+                            $errors[] = formbuilder_i18n('ERROR_CAPTCHA_FAILED', 'Captcha verification failed');
                         }
                     }
                 }
@@ -1351,14 +1390,14 @@ function show_form($slug, $echo = true) {
                             
                             $maxSize = ($f['file_max_size'] ?? 5) * 1024 * 1024;
                             if ($file['size'] > $maxSize) {
-                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_SIZE', ' - plik zbyt duży (max ') . ($f['file_max_size'] ?? 5) . 'MB)';
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_SIZE', ' - file too large (max ') . ($f['file_max_size'] ?? 5) . 'MB)';
                                 continue;
                             }
                             
                             $allowed = array_map('trim', explode(',', $f['file_accept'] ?? ''));
                             $ext = '.' . strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                             if (!empty($allowed[0]) && !in_array($ext, $allowed)) {
-                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_TYPE', ' - nieprawidłowy typ pliku');
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_TYPE', ' - invalid file type');
                                 continue;
                             }
                             
@@ -1375,7 +1414,7 @@ function show_form($slug, $echo = true) {
                             ];
                             
                             if (!in_array($mimeType, $allowedMimes)) {
-                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_INVALID', ' - nieprawidłowy plik');
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_FILE_INVALID', ' - invalid file');
                                 continue;
                             }
                             
@@ -1393,10 +1432,10 @@ function show_form($slug, $echo = true) {
                                     'mime' => $mimeType
                                 ];
                             } else {
-                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_UPLOAD_FAILED', ' - upload nie powiódł się');
+                                $errors[] = $f['label'] . formbuilder_i18n('ERROR_UPLOAD_FAILED', ' - upload failed');
                             }
                         } elseif ($f['required']) {
-                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_REQUIRED', ' - pole wymagane');
+                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_REQUIRED', ' - field required');
                         }
                     } else {
                         $val = isset($_POST[$f['name']]) ? $_POST[$f['name']] : '';
@@ -1411,11 +1450,11 @@ function show_form($slug, $echo = true) {
                         }
                         
                         if ($f['required'] && empty($val)) {
-                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_REQUIRED', ' - pole wymagane');
+                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_REQUIRED', ' - field required');
                         }
                         
                         if ($f['type'] == 'email' && !empty($val) && !filter_var($val, FILTER_VALIDATE_EMAIL)) {
-                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_EMAIL_INVALID', ' - nieprawidłowy adres email');
+                            $errors[] = $f['label'] . formbuilder_i18n('ERROR_EMAIL_INVALID', ' - invalid email');
                         }
                     }
                     
@@ -1627,7 +1666,7 @@ function show_form($slug, $echo = true) {
                     
                     <?php elseif ($f['type'] == 'select'): ?>
                         <select name="<?php echo htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8'); ?>" <?php if ($f['required']) echo 'required'; ?>>
-                            <option value=""><?php echo formbuilder_i18n('SELECT_OPTION', 'Wybierz opcję'); ?></option>
+                            <option value=""><?php echo formbuilder_i18n('SELECT_OPTION', 'Select option'); ?></option>
                             <?php foreach (explode('|', $f['options']) as $opt): ?>
                             <option value="<?php echo htmlspecialchars(trim($opt), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars(trim($opt), ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
@@ -1659,8 +1698,8 @@ function show_form($slug, $echo = true) {
                                <?php if ($f['required']) echo 'required'; ?>>
                         <?php if (!empty($f['file_accept']) || !empty($f['file_max_size'])): ?>
                         <div class="fb-file-info-minimal">
-                            <?php if (!empty($f['file_accept'])): ?><?php echo formbuilder_i18n('FILE_ALLOWED', 'Dozwolone'); ?>: <?php echo htmlspecialchars($f['file_accept'], ENT_QUOTES, 'UTF-8'); ?> | <?php endif; ?>
-                            <?php echo formbuilder_i18n('FILE_MAX', 'Maks'); ?>: <?php echo (int)($f['file_max_size'] ?? 5); ?>MB
+                            <?php if (!empty($f['file_accept'])): ?><?php echo formbuilder_i18n('FILE_ALLOWED', 'Allowed'); ?>: <?php echo htmlspecialchars($f['file_accept'], ENT_QUOTES, 'UTF-8'); ?> | <?php endif; ?>
+                            <?php echo formbuilder_i18n('FILE_MAX', 'Max'); ?>: <?php echo (int)($f['file_max_size'] ?? 5); ?>MB
                         </div>
                         <?php endif; ?>
                     
