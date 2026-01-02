@@ -1,10 +1,7 @@
 # FormBuilder for GetSimple CMS
 
 A modern, user-friendly **contact/form builder plugin** for **GetSimple CMS** (including GetSimple CE). Allows you to easily create unlimited forms with a drag-and-drop-like field editor (order by saving), file uploads, hCaptcha protection, and flexible email delivery options.
-
-![FormBuilder screenshot](https://via.placeholder.com/800x450.png?text=FormBuilder+Admin+Panel+Screenshot)  
-*(Add real screenshots later)*
-
+ 
 ## Features
 
 - **Unlimited forms** with unique slugs
