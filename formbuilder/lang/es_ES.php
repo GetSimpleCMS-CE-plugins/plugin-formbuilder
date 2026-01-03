@@ -2,13 +2,13 @@
 if (!defined('IN_GS')) die('You cannot load this file directly!');
 
 $i18n = array(
-	'PLUGIN_NAME' => 'Constructor de formularios',
+	'PLUGIN_NAME' => 'Constructor de Formularios',
 	'PLUGIN_DESC' => 'Constructor avanzado de formularios con hCAPTCHA, subida de archivos y notificaciones por correo.',
 	
 	// Buttons
-	'BTN_CREATE' => 'Crear nuevo formulario',
-	'BTN_BACK' => 'Volver',
-	'BTN_SAVE' => 'Guardar formulario',
+	'BTN_CREATE' => 'Crear Nuevo Formulario',
+	'BTN_BACK' => 'Atrás',
+	'BTN_SAVE' => 'Guardar Formulario',
 	'BTN_DELETE' => 'Borrar',
 	'BTN_EDIT' => 'Editar',
 	'BTN_REMOVE' => 'Eliminar',
@@ -25,7 +25,7 @@ $i18n = array(
 	'TABLE_MAIL_METHOD' => 'Método de envío',
 	
 	// Lists
-	'YOUR_FORMS' => 'Tus formularios',
+	'YOUR_FORMS' => 'Tus Formularios',
 	'SUBMISSIONS_COUNT' => 'envíos',
 	'SUBMISSIONS_COUNT_SINGLE' => 'envío',
 	
@@ -39,31 +39,31 @@ $i18n = array(
 	'NO_SUBMISSIONS' => 'Aún no hay envíos.',
 	
 	// Info Box
-	'HOW_TO_USE' => 'Cómo usarlo',
+	'HOW_TO_USE' => 'Cómo Usarlo',
 	'IN_PAGE_CONTENT' => 'En el contenido de la página',
 	'IN_THEME' => 'En la plantilla del tema',
 	'GET_CAPTCHA' => 'Obtener claves de hCAPTCHA',
 	'FREE_AT_HCAPTCHA' => 'Gratis en hCaptcha.com',
 	
 	// Form Headers
-	'EDIT_FORM' => 'Editar formulario',
+	'EDIT_FORM' => 'Editar Formulario',
 	'CREATE_FORM' => 'Crear nuevo formulario',
 	'EDIT_DESC' => 'Edita la configuración y los campos del formulario',
 	'CREATE_DESC' => 'Crea un nuevo formulario',
 	
 	// Section Titles
-	'FORM_SETTINGS' => 'Configuración del formulario',
-	'FORM_BEHAVIOR' => 'Comportamiento del formulario',
-	'EMAIL_CONFIGURATION' => 'Configuración del correo',
+	'FORM_SETTINGS' => 'Configuración del Formulario',
+	'FORM_BEHAVIOR' => 'Comportamiento del Formulario',
+	'EMAIL_CONFIGURATION' => 'Configuración del Correo',
 	'SECURITY' => 'Seguridad (hCAPTCHA)',
-	'FORM_FIELDS' => 'Campos del formulario',
+	'FORM_FIELDS' => 'Campos del Formulario',
 	
 	// Form Settings
-	'FORM_NAME' => 'Nombre del formulario *',
-	'FORM_NAME_PH' => 'Formulario de contacto',
+	'FORM_NAME' => 'Nombre del Formulario *',
+	'FORM_NAME_PH' => 'Formulario de Contacto',
 	'FORM_SLUG' => 'Slug *',
 	'FORM_SLUG_PH' => 'formulario-contacto',
-	'FORM_TITLE' => 'Título visible',
+	'FORM_TITLE' => 'Título Visible',
 	'FORM_TITLE_PH' => 'Contacto',
 	'FORM_DESC' => 'Descripción',
 	'FORM_DESC_PH' => 'Descripción del formulario',
@@ -178,8 +178,8 @@ $i18n = array(
 	'REQUIRED_MARK' => '*',
 	
 	// Email
-	'EMAIL_SUBJECT' => 'Envío de formulario: ',
-	'EMAIL_NEW_SUBMISSION' => 'Nuevo envío: ',
+	'EMAIL_SUBJECT' => 'Consulta desde el formulario: ',
+	'EMAIL_NEW_SUBMISSION' => 'Nueva consulta: ',
 	
 	'MAIL_CHARSET' => 'Codificación del correo',
 	'MAIL_CHARSET_UTF8' => 'UTF-8 (Unicode – recomendado)',

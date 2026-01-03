@@ -226,6 +226,18 @@ function formbuilder_main() {
     $fid = isset($_GET['fid']) ? (int)$_GET['fid'] : 0;
     
     echo '<style>
+	.fb-card a:link, .fb-info-box a:link {
+		text-decoration: none;
+	}
+	.fb-card a:visited, .fb-info-box a:visited {
+		text-decoration: none;
+	}
+	.fb-card a:hover, .fb-info-box a:hover {
+		text-decoration: underline;
+	}
+	.fb-card a:active, .fb-info-box a:hover {
+		text-decoration: underline;
+	}
     .fb-admin-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -517,6 +529,9 @@ function formbuilder_main() {
         transition: all 0.3s ease;
         box-sizing: border-box;
     }
+	.fb-form-group textarea{
+		height:200px
+	}
     .fb-form-group input.text:focus,
     .fb-form-group textarea.text:focus {
         outline: none;
@@ -534,6 +549,7 @@ function formbuilder_main() {
         width: 18px;
         height: 18px;
         cursor: pointer;
+		margin-right: 5px;
     }
     .fb-radio-group {
         display: flex;
@@ -545,6 +561,9 @@ function formbuilder_main() {
         align-items: center;
         gap: 8px;
         cursor: pointer;
+    }
+	.fb-radio-label,.fb-radio-group input {
+		margin-right: 5px;
     }
     </style>';
     
@@ -716,7 +735,7 @@ function formbuilder_list() {
     echo '<div class="fb-info-box">';
     echo '<h4>🚀 ' . i18n_r('formbuilder/HOW_TO_USE') . '</h4>';
     echo '<p><strong>' . i18n_r('formbuilder/IN_PAGE_CONTENT') . ':</strong> <code>[formbuilder id="your-slug"]</code></p>';
-    echo '<p><strong>' . i18n_r('formbuilder/IN_THEME') . ':</strong> <code>&lt;?php show_form("your-slug"); ?&gt;</code></p>';
+    echo '<p><strong>' . i18n_r('formbuilder/IN_THEME') . ':</strong> <code>&lt;?php show_form("your-slug"); ?&gt;</code></p><br>';
     echo '<p><strong>' . i18n_r('formbuilder/GET_CAPTCHA') . ':</strong> <a href="https://www.hcaptcha.com/" target="_blank" style="color:#667eea;">' . i18n_r('formbuilder/FREE_AT_HCAPTCHA') . '</a></p>';
     echo '</div>';
 }
@@ -1741,10 +1760,12 @@ function show_form($slug, $echo = true) {
  * Send email using standard mail() WITH attachments and charset support
  */
 function formbuilder_send_standard_email($form, $data, $uploaded_files) {
-    $to = $form['email_to'];
+    global $SITENAME;
+	
+	$to = $form['email_to'];
     $charset = $form['mail_charset'] ?? 'UTF-8';
     
-    $subjectText = i18n_r('formbuilder/EMAIL_SUBJECT') . $form['name'];
+    $subjectText = $SITENAME . ', ' . i18n_r('formbuilder/EMAIL_SUBJECT') . $form['name'];
     
     if ($charset != 'UTF-8') {
         $subjectText = mb_convert_encoding($subjectText, $charset, 'UTF-8');
@@ -1764,7 +1785,7 @@ function formbuilder_send_standard_email($form, $data, $uploaded_files) {
     if (!empty($uploaded_files)) {
         $boundary = md5(time());
         
-        $fromName = !empty($form['smtp_from_name']) ? $form['smtp_from_name'] : 'Formularze';
+        $fromName = !empty($form['smtp_from_name']) ? $form['smtp_from_name'] : $_SERVER['HTTP_HOST'];
         if ($charset != 'UTF-8') {
             $fromName = mb_convert_encoding($fromName, $charset, 'UTF-8');
         }
@@ -1800,7 +1821,7 @@ function formbuilder_send_standard_email($form, $data, $uploaded_files) {
         
         @mail($to, $subject, $body, $headers);
     } else {
-        $fromName = !empty($form['smtp_from_name']) ? $form['smtp_from_name'] : 'Formularze';
+        $fromName = !empty($form['smtp_from_name']) ? $form['smtp_from_name'] : $_SERVER['HTTP_HOST'];
         if ($charset != 'UTF-8') {
             $fromName = mb_convert_encoding($fromName, $charset, 'UTF-8');
         }
@@ -1820,7 +1841,9 @@ function formbuilder_send_standard_email($form, $data, $uploaded_files) {
  * Send email using SMTP (PHPMailer) with timeout protection, attachments and charset support
  */
 function formbuilder_send_smtp_email($form, $data, $uploaded_files) {
-    set_time_limit(30);
+    global $SITENAME;
+	
+	set_time_limit(30);
     
     if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
         error_log('PHPMailer not found - falling back to mail()');
@@ -1863,7 +1886,7 @@ function formbuilder_send_smtp_email($form, $data, $uploaded_files) {
         
         $mail->isHTML(false);
         
-        $subjectText = i18n_r('formbuilder/EMAIL_SUBJECT') . $form['name'];
+        $subjectText = $SITENAME . ', ' . i18n_r('formbuilder/EMAIL_SUBJECT') . $form['name'];
         $message = i18n_r('formbuilder/EMAIL_NEW_SUBMISSION') . $form['name'] . "\n\n";
         foreach ($data as $k => $v) {
             $message .= ucfirst(str_replace('_', ' ', $k)) . ": " . $v . "\n";

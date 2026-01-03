@@ -178,8 +178,8 @@ $i18n = array(
     'REQUIRED_MARK' => '*',
     
     // Email
-    'EMAIL_SUBJECT' => 'Form Submission: ',
-    'EMAIL_NEW_SUBMISSION' => 'New submission: ',
+    'EMAIL_SUBJECT' => 'Inquiry from form: ',
+    'EMAIL_NEW_SUBMISSION' => 'New Inquiry: ',
     
     'MAIL_CHARSET' => 'Email Encoding',
 'MAIL_CHARSET_UTF8' => 'UTF-8 (Unicode - recommended)',
